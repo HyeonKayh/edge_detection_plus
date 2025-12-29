@@ -36,6 +36,7 @@ import org.opencv.core.Mat
 import org.opencv.core.Size
 import org.opencv.imgcodecs.Imgcodecs
 import org.opencv.imgproc.Imgproc
+import org.opencv.core.MatOfByte
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.concurrent.ExecutorService
@@ -275,25 +276,38 @@ class ScanPresenter constructor(
 
     override fun onPictureTaken(p0: ByteArray?, p1: Camera?) {
         Log.i(TAG, "on picture taken")
+
+        if (p0 == null || p0.isEmpty()) {
+            busy = false
+            return
+        }
+
         Observable.just(p0)
             .subscribeOn(proxySchedule)
-            .subscribe {
+            .subscribe({ data ->
                 val pictureSize = p1?.parameters?.pictureSize
-                Log.i(TAG, "picture size: " + pictureSize.toString())
-                val mat = Mat(
-                    Size(
-                        pictureSize?.width?.toDouble() ?: 1920.toDouble(),
-                        pictureSize?.height?.toDouble() ?: 1080.toDouble()
-                    ), CvType.CV_8U
-                )
-                mat.put(0, 0, p0)
-                val pic = Imgcodecs.imdecode(mat, Imgcodecs.IMREAD_UNCHANGED)
+                Log.i(TAG, "picture size: $pictureSize")
+
+                val buffer = MatOfByte(*data)
+                val pic = Imgcodecs.imdecode(buffer, Imgcodecs.IMREAD_UNCHANGED)
+
+                if (pic.empty()) {
+                    buffer.release()
+                    busy = false
+                    return@subscribe
+                }
+
                 Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE)
-                mat.release()
+                buffer.release()
+
                 detectEdge(pic)
                 shutted = true
                 busy = false
-            }
+
+            }, { e ->
+                Log.e(TAG, "onPictureTaken error", e)
+                busy = false
+            })
     }
 
     override fun onPreviewFrame(p0: ByteArray?, p1: Camera?) {
