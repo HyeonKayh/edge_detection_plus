@@ -9,9 +9,11 @@ class HomeViewController: UIViewController, ImageScannerControllerDelegate {
     
     var saveTo: String = ""
     var canUseGallery: Bool = true
-    
+    var cardGuide: Bool = false
+
     override func viewDidAppear(_ animated: Bool) {
         if self.isBeingPresented {
+            CardGuide.isEnabled = cardGuide
             cameraController = ImageScannerController()
             cameraController.imageScannerDelegate = self
 
@@ -112,9 +114,10 @@ class HomeViewController: UIViewController, ImageScannerControllerDelegate {
         NSLayoutConstraint.activate(selectPhotoButtonConstraints)
     }
     
-    func setParams(saveTo: String, canUseGallery: Bool) {
+    func setParams(saveTo: String, canUseGallery: Bool, cardGuide: Bool = false) {
         self.saveTo = saveTo
         self.canUseGallery = canUseGallery
+        self.cardGuide = cardGuide
     }
     
     func imageScannerController(_ scanner: ImageScannerController, didFailWithError error: Error) {

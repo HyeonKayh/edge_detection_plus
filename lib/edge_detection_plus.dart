@@ -6,9 +6,13 @@ class EdgeDetectionPlus {
   static const MethodChannel _channel = const MethodChannel('edge_detection');
 
   /// Call this method to scan the object edge in live camera.
+  ///
+  /// [cardGuide] shows an ID-card sized guide frame and captures automatically
+  /// when the detected edges fit inside the frame.
   static Future<bool> detectEdge(
     String saveTo, {
     bool canUseGallery = true,
+    bool cardGuide = false,
     String androidScanTitle = "Scanning",
     String androidCropTitle = "Crop",
     String androidCropBlackWhiteTitle = "Black White",
@@ -17,6 +21,7 @@ class EdgeDetectionPlus {
     return await _channel.invokeMethod('edge_detect', {
       'save_to': saveTo,
       'can_use_gallery': canUseGallery,
+      'card_guide': cardGuide,
       'scan_title': androidScanTitle,
       'crop_title': androidCropTitle,
       'crop_black_white_title': androidCropBlackWhiteTitle,

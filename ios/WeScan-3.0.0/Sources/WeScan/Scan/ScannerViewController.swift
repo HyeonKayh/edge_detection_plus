@@ -22,6 +22,9 @@ public final class ScannerViewController: UIViewController {
     /// The view that draws the detected rectangles.
     private let quadView = QuadrilateralView()
 
+    /// The overlay that shows the ID-card guide frame.
+    private let cardGuideView = CardGuideOverlayView()
+
     /// Whether flash is enabled
     private var flashEnabled = false
 
@@ -90,6 +93,7 @@ public final class ScannerViewController: UIViewController {
         setNeedsStatusBarAppearanceUpdate()
 
         CaptureSession.current.isEditing = false
+        CardGuide.isSatisfied = false
         quadView.removeQuadrilateral()
         captureSessionManager?.start()
         UIApplication.shared.isIdleTimerDisabled = true
@@ -101,6 +105,7 @@ public final class ScannerViewController: UIViewController {
         super.viewDidLayoutSubviews()
 
         videoPreviewLayer.frame = view.layer.bounds
+        cardGuideView.frame = view.layer.bounds
     }
 
     override public func viewWillDisappear(_ animated: Bool) {
@@ -124,6 +129,9 @@ public final class ScannerViewController: UIViewController {
         quadView.translatesAutoresizingMaskIntoConstraints = false
         quadView.editable = false
         view.addSubview(quadView)
+        if CardGuide.isEnabled {
+            view.addSubview(cardGuideView)
+        }
         view.addSubview(cancelButton)
         view.addSubview(shutterButton)
         view.addSubview(activityIndicator)
@@ -301,6 +309,10 @@ extension ScannerViewController: RectangleDetectionDelegateProtocol {
         guard let quad else {
             // If no quad has been detected, we remove the currently displayed on on the quadView.
             quadView.removeQuadrilateral()
+            if CardGuide.isEnabled {
+                CardGuide.isSatisfied = false
+                cardGuideView.setDetected(false)
+            }
             return
         }
 
@@ -318,6 +330,12 @@ extension ScannerViewController: RectangleDetectionDelegateProtocol {
         let transforms = [scaleTransform, rotationTransform, translationTransform]
 
         let transformedQuad = quad.applyTransforms(transforms)
+
+        if CardGuide.isEnabled {
+            let satisfied = cardGuideView.contains(quad: transformedQuad)
+            CardGuide.isSatisfied = satisfied
+            cardGuideView.setDetected(satisfied)
+        }
 
         quadView.drawQuadrilateral(quad: transformedQuad, animated: true)
     }

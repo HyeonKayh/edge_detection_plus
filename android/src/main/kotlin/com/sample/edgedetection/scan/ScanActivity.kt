@@ -17,6 +17,7 @@ import com.sample.edgedetection.EdgeDetectionHandler
 import com.sample.edgedetection.R
 import com.sample.edgedetection.REQUEST_CODE
 import com.sample.edgedetection.base.BaseActivity
+import com.sample.edgedetection.view.CardGuideView
 import com.sample.edgedetection.view.PaperRectangle
 import org.opencv.android.OpenCVLoader
 import org.opencv.core.Core
@@ -73,6 +74,11 @@ class ScanActivity : BaseActivity(), IScanView.Proxy {
                     View.VISIBLE
                 else View.GONE
 
+        findViewById<View>(R.id.card_guide).visibility =
+                if (initialBundle.getBoolean(EdgeDetectionHandler.CARD_GUIDE, false))
+                    View.VISIBLE
+                else View.GONE
+
         findViewById<View>(R.id.gallery).setOnClickListener {
             pickupFromGallery()
         }
@@ -114,6 +120,8 @@ class ScanActivity : BaseActivity(), IScanView.Proxy {
     override fun getSurfaceView() = findViewById<SurfaceView>(R.id.surface)
 
     override fun getPaperRect() = findViewById<PaperRectangle>(R.id.paper_rect)
+
+    override fun getCardGuide() = findViewById<CardGuideView>(R.id.card_guide)
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)

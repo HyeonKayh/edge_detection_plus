@@ -5,6 +5,7 @@ import android.graphics.Matrix
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.widget.RelativeLayout
 import com.sample.edgedetection.EdgeDetectionHandler
 import com.sample.edgedetection.SourceManager
 import com.sample.edgedetection.processor.Corners
@@ -33,7 +34,28 @@ class CropPresenter(
     private var rotateBitmapDegree: Int = -90
 
     fun onViewsReady(paperWidth: Int, paperHeight: Int) {
-        iCropView.getPaperRect().onCorners2Crop(corners, picture?.size(), paperWidth, paperHeight)
+        // fitXY로 인한 왜곡이 없도록 이미지 비율에 맞춰 뷰를 줄이고 좌표 매핑도 같은 크기로 전달
+        var fittedWidth = paperWidth
+        var fittedHeight = paperHeight
+        val picWidth = picture?.width() ?: 0
+        val picHeight = picture?.height() ?: 0
+        if (picWidth > 0 && picHeight > 0) {
+            val picRatio = picWidth.toDouble() / picHeight
+            fittedHeight = (paperWidth / picRatio).toInt()
+            if (fittedHeight > paperHeight) {
+                fittedHeight = paperHeight
+                fittedWidth = (paperHeight * picRatio).toInt()
+            }
+            listOf<View>(iCropView.getPaper(), iCropView.getPaperRect()).forEach { view ->
+                val params = view.layoutParams as RelativeLayout.LayoutParams
+                params.width = fittedWidth
+                params.height = fittedHeight
+                params.addRule(RelativeLayout.CENTER_IN_PARENT)
+                view.layoutParams = params
+            }
+        }
+
+        iCropView.getPaperRect().onCorners2Crop(corners, picture?.size(), fittedWidth, fittedHeight)
         val bitmap = Bitmap.createBitmap(
             picture?.width() ?: 1080, picture?.height()
                 ?: 1920, Bitmap.Config.ARGB_8888

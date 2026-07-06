@@ -1,9 +1,8 @@
 package com.sample.edgedetection.base
 
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
-import android.view.View
-import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import com.sample.edgedetection.R
 
@@ -16,38 +15,20 @@ abstract class BaseActivity : AppCompatActivity() {
         setContentView(provideContentViewId())
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         initPresenter()
-        transparentStatusBar()
+        opaqueStatusBar()
         prepare()
     }
 
-    private fun transparentStatusBar(
+    // 상태바를 앱바와 같은 불투명 색으로 덮고 콘텐츠는 그 아래부터 배치한다
+    private fun opaqueStatusBar(
         statusBarColor: Int = resources.getColor(R.color.colorPrimary)
     ) {
-        var systemUiVisibility = 0
-        // Use a dark scrim by default since light status is API 23+
-        // Use a dark scrim by default since light nav bar is API 27+
-        val winParams = window.attributes
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            systemUiVisibility = systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            systemUiVisibility = systemUiVisibility or
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            window.decorView.systemUiVisibility = systemUiVisibility
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            winParams.flags = winParams.flags or
-                WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            winParams.flags = winParams.flags and
-                (WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS).inv()
             window.statusBarColor = statusBarColor
         }
-
-        window.attributes = winParams
+        // targetSdk 35 강제 edge-to-edge에서는 statusBarColor가 무시되고
+        // 상태바 뒤로 윈도우 배경이 보이므로 배경 자체를 같은 색으로 채운다
+        window.setBackgroundDrawable(ColorDrawable(statusBarColor))
     }
 
     abstract fun provideContentViewId(): Int

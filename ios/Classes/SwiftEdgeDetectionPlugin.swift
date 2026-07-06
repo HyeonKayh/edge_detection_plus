@@ -15,12 +15,13 @@ public class SwiftEdgeDetectionPlugin: NSObject, FlutterPlugin, UIApplicationDel
         let args = call.arguments as! Dictionary<String, Any>
         let saveTo = args["save_to"] as! String
         let canUseGallery = args["can_use_gallery"] as? Bool ?? false
+        let cardGuide = args["card_guide"] as? Bool ?? false
 
         if (call.method == "edge_detect")
         {
             if let viewController = UIApplication.shared.delegate?.window??.rootViewController as? FlutterViewController {
                 let destinationViewController = HomeViewController()
-                destinationViewController.setParams(saveTo: saveTo, canUseGallery: canUseGallery)
+                destinationViewController.setParams(saveTo: saveTo, canUseGallery: canUseGallery, cardGuide: cardGuide)
                 destinationViewController._result = result
                 viewController.present(destinationViewController,animated: true,completion: nil);
             }

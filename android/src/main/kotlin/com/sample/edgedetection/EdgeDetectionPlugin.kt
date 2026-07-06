@@ -50,6 +50,7 @@ class EdgeDetectionHandler : MethodCallHandler, PluginRegistry.ActivityResultLis
         const val CROP_TITLE = "crop_title"
         const val CROP_BLACK_WHITE_TITLE = "crop_black_white_title"
         const val CROP_RESET_TITLE = "crop_reset_title"
+        const val CARD_GUIDE = "card_guide"
     }
 
     fun setActivityPluginBinding(activityPluginBinding: ActivityPluginBinding) {
@@ -116,6 +117,7 @@ class EdgeDetectionHandler : MethodCallHandler, PluginRegistry.ActivityResultLis
         bundle.putString(CROP_BLACK_WHITE_TITLE, call.argument<String>(CROP_BLACK_WHITE_TITLE) as String)
         bundle.putString(CROP_RESET_TITLE, call.argument<String>(CROP_RESET_TITLE) as String)
         bundle.putBoolean(CAN_USE_GALLERY, call.argument<Boolean>(CAN_USE_GALLERY) as Boolean)
+        bundle.putBoolean(CARD_GUIDE, call.argument<Boolean>(CARD_GUIDE) ?: false)
 
         initialIntent.putExtra(INITIAL_BUNDLE, bundle)
 

@@ -9,14 +9,11 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.hardware.Camera
 import android.hardware.camera2.CameraAccessException
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
-import android.hardware.camera2.params.StreamConfigurationMap
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import android.view.Display
 import android.view.SurfaceHolder
+import android.widget.RelativeLayout
 import android.widget.Toast
 import com.sample.edgedetection.EdgeDetectionHandler
 import com.sample.edgedetection.REQUEST_CODE
@@ -24,6 +21,7 @@ import com.sample.edgedetection.SourceManager
 import com.sample.edgedetection.crop.CropActivity
 import com.sample.edgedetection.processor.Corners
 import com.sample.edgedetection.processor.processPicture
+import com.sample.edgedetection.view.CardGuideView
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -41,9 +39,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import kotlin.math.max
-import kotlin.math.min
-import android.util.Size as SizeB
+import kotlin.math.abs
 
 class ScanPresenter constructor(
     private val context: Context,
@@ -57,11 +53,22 @@ class ScanPresenter constructor(
     private val executor: ExecutorService
     private val proxySchedule: Scheduler
     private var busy: Boolean = false
-    private var mCameraLensFacing: String? = null
     private var flashEnabled: Boolean = false
 
     private var mLastClickTime = 0L
     private var shutted: Boolean = true
+
+    private val cardGuideEnabled =
+        initialBundle.getBoolean(EdgeDetectionHandler.CARD_GUIDE, false)
+    private var guideStableCount = 0
+
+    companion object {
+        // 손떨림으로 인한 오탐 방지를 위해 연속 프레임 유지 시에만 자동 촬영
+        private const val GUIDE_STABLE_THRESHOLD = 6
+
+        // 프리뷰 비율 비교 시 이 간격 안이면 같은 비율대로 보고 해상도가 높은 쪽을 고른다
+        private const val PREVIEW_RATIO_BUCKET = 0.05f
+    }
 
     init {
         mSurfaceHolder.addCallback(this)
@@ -134,24 +141,6 @@ class ScanPresenter constructor(
         mCamera?.startPreview()
     }
 
-    private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-
-    private fun getCameraCharacteristics(id: String): CameraCharacteristics {
-        return cameraManager.getCameraCharacteristics(id)
-    }
-
-    private fun getBackFacingCameraId(): String? {
-        for (camID in cameraManager.cameraIdList) {
-            val lensFacing =
-                getCameraCharacteristics(camID)?.get(CameraCharacteristics.LENS_FACING)!!
-            if (lensFacing == CameraCharacteristics.LENS_FACING_BACK) {
-                mCameraLensFacing = camID
-                break
-            }
-        }
-        return mCameraLensFacing
-    }
-
     private fun initCamera() {
 
         try {
@@ -163,20 +152,6 @@ class ScanPresenter constructor(
             return
         }
 
-        val cameraCharacteristics =
-            cameraManager.getCameraCharacteristics(getBackFacingCameraId()!!)
-
-        val size = iView.getCurrentDisplay()?.let {
-            getPreviewOutputSize(
-                it, cameraCharacteristics, SurfaceHolder::class.java
-            )
-        }
-
-        Log.i(TAG, "Selected preview size: ${size?.width}${size?.height}")
-
-        size?.width?.toString()?.let { Log.i(TAG, it) }
-        val param = mCamera?.parameters
-        param?.setPreviewSize(size?.width ?: 1920, size?.height ?: 1080)
         val display = iView.getCurrentDisplay()
         val point = Point()
 
@@ -184,12 +159,42 @@ class ScanPresenter constructor(
 
         val displayWidth = minOf(point.x, point.y)
         val displayHeight = maxOf(point.x, point.y)
+
+        // 화면 비율과 가장 가까운 프리뷰(비슷한 비율 중 최대 해상도)를 골라 레터박스를 최소화
+        val displayLandscapeRatio = displayHeight.toFloat() / displayWidth
+        val size = mCamera?.parameters?.supportedPreviewSizes
+            ?.filter { it.height <= 1080 && it.width <= 2560 }
+            ?.sortedWith(compareBy(
+                { (abs(it.width.toFloat() / it.height - displayLandscapeRatio) / PREVIEW_RATIO_BUCKET).toInt() },
+                { -it.width * it.height }
+            ))
+            ?.firstOrNull()
+
+        Log.i(TAG, "Selected preview size: ${size?.width}x${size?.height}")
+
+        val param = mCamera?.parameters
+        param?.setPreviewSize(size?.width ?: 1920, size?.height ?: 1080)
+
         val displayRatio = displayWidth.div(displayHeight.toFloat())
         val previewRatio = size?.height?.toFloat()?.div(size.width.toFloat()) ?: displayRatio
+
+        // 프리뷰 비율 그대로 레터박스 배치해 화면비가 달라도 영상이 늘어나지 않게 한다.
+        // 꼭짓점 좌표 매핑이 어긋나지 않도록 오버레이 뷰들도 서페이스와 같은 크기로 맞춘다.
+        val surfaceWidth: Int
+        val surfaceHeight: Int
         if (displayRatio > previewRatio) {
-            val surfaceParams = iView.getSurfaceView().layoutParams
-            surfaceParams.height = (displayHeight / displayRatio * previewRatio).toInt()
-            iView.getSurfaceView().layoutParams = surfaceParams
+            surfaceWidth = (displayHeight * previewRatio).toInt()
+            surfaceHeight = displayHeight
+        } else {
+            surfaceWidth = displayWidth
+            surfaceHeight = (displayWidth / previewRatio).toInt()
+        }
+        listOf(iView.getSurfaceView(), iView.getPaperRect(), iView.getCardGuide()).forEach { view ->
+            val params = view.layoutParams as RelativeLayout.LayoutParams
+            params.width = surfaceWidth
+            params.height = surfaceHeight
+            params.addRule(RelativeLayout.CENTER_IN_PARENT)
+            view.layoutParams = params
         }
 
         val supportPicSize = mCamera?.parameters?.supportedPictureSizes
@@ -255,6 +260,32 @@ class ScanPresenter constructor(
         val cropIntent = Intent(context, CropActivity::class.java)
         cropIntent.putExtra(EdgeDetectionHandler.INITIAL_BUNDLE, this.initialBundle)
         (context as Activity).startActivityForResult(cropIntent, REQUEST_CODE)
+    }
+
+    private fun checkCardGuide(corners: Corners) {
+        val guideView: CardGuideView = iView.getCardGuide()
+        if (guideView.measuredWidth == 0 || guideView.measuredHeight == 0) {
+            return
+        }
+
+        val ratioX = corners.size.width.div(guideView.measuredWidth)
+        val ratioY = corners.size.height.div(guideView.measuredHeight)
+        val viewPoints = corners.corners.filterNotNull().map {
+            org.opencv.core.Point(it.x / ratioX, it.y / ratioY)
+        }
+
+        val inside = guideView.contains(viewPoints)
+        guideView.setDetected(inside)
+
+        if (inside) {
+            guideStableCount++
+            if (guideStableCount >= GUIDE_STABLE_THRESHOLD && canShut) {
+                guideStableCount = 0
+                shut()
+            }
+        } else {
+            guideStableCount = 0
+        }
     }
 
     override fun surfaceCreated(p0: SurfaceHolder) {
@@ -351,9 +382,17 @@ class ScanPresenter constructor(
                         }
                     }.observeOn(AndroidSchedulers.mainThread())
                         .subscribe({
+                            // PaperRectangle이 꼭짓점 좌표를 뷰 좌표로 변형(resize)하므로 판정을 먼저 수행
+                            if (cardGuideEnabled) {
+                                checkCardGuide(it)
+                            }
                             iView.getPaperRect().onCornersDetected(it)
 
                         }, {
+                            if (cardGuideEnabled) {
+                                guideStableCount = 0
+                                iView.getCardGuide().setDetected(false)
+                            }
                             iView.getPaperRect().onCornersNotDetected()
                         })
                 }, { throwable -> Log.e(TAG, throwable.message!!) })
@@ -363,59 +402,4 @@ class ScanPresenter constructor(
 
     }
 
-    /** [CameraCharacteristics] corresponding to the provided Camera ID */
-
-    class SmartSize(width: Int, height: Int) {
-        var size = SizeB(width, height)
-        var long = max(size.width, size.height)
-        var short = min(size.width, size.height)
-        override fun toString() = "SmartSize(${long}x${short})"
-    }
-
-    /** Standard High Definition size for pictures and video */
-    private val SIZE_1080P: SmartSize = SmartSize(1920, 1080)
-
-    /** Returns a [SmartSize] object for the given [Display] */
-    private fun getDisplaySmartSize(display: Display): SmartSize {
-        val outPoint = Point()
-        display.getRealSize(outPoint)
-        return SmartSize(outPoint.x, outPoint.y)
-    }
-
-    /**
-     * Returns the largest available PREVIEW size. For more information, see:
-     * https://d.android.com/reference/android/hardware/camera2/CameraDevice and
-     * https://developer.android.com/reference/android/hardware/camera2/params/StreamConfigurationMap
-     */
-    private fun <T> getPreviewOutputSize(
-        display: Display,
-        characteristics: CameraCharacteristics,
-        targetClass: Class<T>,
-        format: Int? = null
-    ): SizeB {
-
-        // Find which is smaller: screen or 1080p
-        val screenSize = getDisplaySmartSize(display)
-        val hdScreen = screenSize.long >= SIZE_1080P.long || screenSize.short >= SIZE_1080P.short
-        val maxSize = if (hdScreen) SIZE_1080P else screenSize
-
-        // If image format is provided, use it to determine supported sizes; else use target class
-        val config = characteristics.get(
-            CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP
-        )!!
-        if (format == null)
-            assert(StreamConfigurationMap.isOutputSupportedFor(targetClass))
-        else
-            assert(config.isOutputSupportedFor(format))
-        val allSizes = if (format == null)
-            config.getOutputSizes(targetClass) else config.getOutputSizes(format)
-
-        // Get available sizes and sort them by area from largest to smallest
-        val validSizes = allSizes
-            .sortedWith(compareBy { it.height * it.width })
-            .map { SmartSize(it.width, it.height) }.reversed()
-
-        // Then, get the largest output size that is smaller or equal than our max size
-        return validSizes.first { it.long <= maxSize.long && it.short <= maxSize.short }.size
-    }
 }

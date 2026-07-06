@@ -16,6 +16,12 @@
         android:layout_height="match_parent"
         android:background="@color/colorTransparent" />
 
+    <com.sample.edgedetection.view.CardGuideView
+        android:id="@+id/card_guide"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -24,7 +30,7 @@
         android:paddingLeft="15dp"
         android:paddingTop="30dp"
         android:paddingRight="15dp"
-        android:paddingBottom="30dp">
+        android:paddingBottom="48dp">
 
         <ImageView
             android:id="@+id/flash"

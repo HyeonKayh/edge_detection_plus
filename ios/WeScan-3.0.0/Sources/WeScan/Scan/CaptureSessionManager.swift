@@ -209,7 +209,8 @@ final class CaptureSessionManager: NSObject, AVCaptureVideoDataOutputSampleBuffe
 
                 let shouldAutoScan = (result == .showAndAutoScan)
                 self.displayRectangleResult(rectangleResult: RectangleDetectorResult(rectangle: rectangle, imageSize: imageSize))
-                if shouldAutoScan, CaptureSession.current.isAutoScanEnabled, !CaptureSession.current.isEditing {
+                if shouldAutoScan, CaptureSession.current.isAutoScanEnabled, !CaptureSession.current.isEditing,
+                   !CardGuide.isEnabled || CardGuide.isSatisfied {
                     capturePhoto()
                 }
             }
