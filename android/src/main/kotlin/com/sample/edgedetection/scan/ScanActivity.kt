@@ -79,6 +79,8 @@ class ScanActivity : BaseActivity(), IScanView.Proxy {
                     View.VISIBLE
                 else View.GONE
 
+        applyBottomInsetPadding(findViewById(R.id.bottom_bar))
+
         findViewById<View>(R.id.gallery).setOnClickListener {
             pickupFromGallery()
         }
